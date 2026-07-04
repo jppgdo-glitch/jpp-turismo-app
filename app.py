@@ -345,6 +345,11 @@ PAGE = r"""<!doctype html>
       overflow-wrap: anywhere;
     }
 
+    .share-button {
+      background: var(--gold);
+      color: var(--ink);
+    }
+
     @media (max-width: 900px) {
       .layout { grid-template-columns: 1fr; }
       .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -757,6 +762,43 @@ PAGE = r"""<!doctype html>
       document.getElementById("pvDest").textContent = "> " + (data.destino || "Destino");
     }
 
+    async function sharePdf(result) {
+      const absoluteUrl = new URL(result.url, window.location.href).href;
+      try {
+        const response = await fetch(result.url);
+        const blob = await response.blob();
+        const file = new File([blob], result.name, { type: "application/pdf" });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ title: result.name, text: "PDF JPP Turismo", files: [file] });
+          return;
+        }
+        if (navigator.share) {
+          await navigator.share({ title: result.name, text: "PDF JPP Turismo", url: absoluteUrl });
+          return;
+        }
+      } catch (error) {
+      }
+      await navigator.clipboard.writeText(absoluteUrl);
+      alert("Link do PDF copiado.");
+    }
+
+    function showGeneratedPdf(result) {
+      historyEl.innerHTML = "";
+      const link = document.createElement("a");
+      link.className = "download";
+      link.href = result.url;
+      link.target = "_blank";
+      link.textContent = result.name;
+      historyEl.appendChild(link);
+
+      const share = document.createElement("button");
+      share.type = "button";
+      share.className = "share-button";
+      share.textContent = "Compartilhar PDF";
+      share.addEventListener("click", () => sharePdf(result));
+      historyEl.appendChild(share);
+    }
+
     form.addEventListener("input", updatePreview);
 
     copyOrderBtn.addEventListener("click", () => copyOrderToBudget(true));
@@ -774,13 +816,7 @@ PAGE = r"""<!doctype html>
       }
       const result = await response.json();
       budgetStatus.textContent = "Orcamento gerado com sucesso.";
-      historyEl.innerHTML = "";
-      const link = document.createElement("a");
-      link.className = "download";
-      link.href = result.url;
-      link.target = "_blank";
-      link.textContent = result.name;
-      historyEl.appendChild(link);
+      showGeneratedPdf(result);
     });
 
     tabButtons.forEach((button) => {
@@ -828,13 +864,7 @@ PAGE = r"""<!doctype html>
 
       const result = await response.json();
       statusEl.textContent = "PDF gerado com sucesso.";
-      historyEl.innerHTML = "";
-      const link = document.createElement("a");
-      link.className = "download";
-      link.href = result.url;
-      link.target = "_blank";
-      link.textContent = result.name;
-      historyEl.appendChild(link);
+      showGeneratedPdf(result);
     });
 
     updatePreview();

@@ -1,4 +1,4 @@
-from __future__ import annotations
+ from __future__ import annotations
 
 import json
 import os
@@ -528,6 +528,9 @@ PAGE = r"""<!doctype html>
     function fillFields(data) {
       Object.entries(data).forEach(([key, value]) => setValue(key, value));
       copyOrderToBudget(false);
+      Object.entries(data)
+        .filter(([key]) => key.startsWith("budget_"))
+        .forEach(([key, value]) => setValue(key, value));
       updatePreview();
     }
 

@@ -589,11 +589,14 @@ PAGE = r"""<!doctype html>
 
     function dateByLabel(text, label) {
       const pattern = new RegExp(label + "\\s*:?\\s*(\\d{1,2})\\s+de\\s+([a-zç]+)\\s+de\\s+(\\d{4})\\s*\\((\\d{1,2}:\\d{2})\\)", "i");
-      const match = text.match(pattern);
+      let match = text.match(pattern);
+      if (!match) {
+        match = text.match(new RegExp(label + "\\s*:?\\s*(\\d{1,2})\\s+de\\s+([a-zÃ§]+)\\s+de\\s+(\\d{4})", "i"));
+      }
       if (!match) return "";
       const day = match[1].padStart(2, "0");
       const month = monthNumber(match[2]);
-      return month ? `${day}/${month}/${match[3]} ${match[4]}` : "";
+      return month ? `${day}/${month}/${match[3]}${match[4] ? " " + match[4] : ""}` : "";
     }
 
     function vehicleFromText(text) {
@@ -601,8 +604,58 @@ PAGE = r"""<!doctype html>
       return match ? match[1].trim() : "";
     }
 
+    function simplifyFieldName(value) {
+      return value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/servi.o/g, "servico")
+        .replace(/inclu.dos/g, "incluidos")
+        .replace(/[^a-z0-9\s]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function singleLineField(text, labels) {
+      const wanted = labels.map(simplifyFieldName);
+      const lines = text.split(/\n+/);
+      for (const line of lines) {
+        const separator = line.indexOf(":");
+        if (separator < 0) continue;
+        const fieldName = simplifyFieldName(line.slice(0, separator));
+        if (wanted.includes(fieldName)) {
+          return line.slice(separator + 1).trim();
+        }
+      }
+      return "";
+    }
+
+    function blockField(text, labels) {
+      const wanted = labels.map(simplifyFieldName);
+      const lines = text.split(/\n+/);
+      for (let i = 0; i < lines.length; i++) {
+        const cleanLine = lines[i].trim();
+        const fieldName = simplifyFieldName(cleanLine.replace(/:$/, ""));
+        if (wanted.includes(fieldName)) {
+          const block = [];
+          for (let j = i + 1; j < lines.length; j++) {
+            const next = lines[j].trim();
+            if (!next) {
+              if (block.length) break;
+              continue;
+            }
+            const nextName = simplifyFieldName(next.split(":")[0] || next);
+            if (/^(valor|observa|chegada|retorno|cliente|passageiros|servico)/i.test(nextName)) break;
+            block.push(next);
+          }
+          return block.join(" | ");
+        }
+      }
+      return "";
+    }
+
     function clientFromText(text) {
-      const named = text.match(/nome do cliente\s*:\s*([^\n\r]+)/i);
+      const named = text.match(/(?:nome do cliente|cliente)\s*:\s*([^\n\r]+)/i);
       if (named) return named[1].trim().toUpperCase();
       const line = text.split(/\n+/).map((item) => item.trim()).find((item) => /^(sr|sra|senhor|senhora|dona)\b/i.test(item));
       if (line) return line.replace(/\s+/g, " ").toUpperCase();
@@ -648,6 +701,36 @@ PAGE = r"""<!doctype html>
         vendedor: "JPP TURISMO"
       };
       const suggestions = [];
+      const explicitService = singleLineField(text, ["servico", "servicos"]);
+      const explicitIncluded = blockField(text, ["servicos incluidos"]);
+      const explicitTotal = singleLineField(text, ["Valor total", "Investimento total"]);
+      const hasCompositeService = explicitService && (
+        explicitService.toLowerCase().includes("transfer") &&
+        (explicitService.toLowerCase().includes("city") || explicitService.toLowerCase().includes("+") || explicitService.toLowerCase().includes("tradicional"))
+      );
+
+      if (hasCompositeService || explicitIncluded) {
+        const service = explicitService || explicitIncluded;
+        const price = explicitTotal || moneyNear(text, "Valor total") || moneyNear(text, "Transfer");
+        suggestions.push({
+          title: service,
+          description: `${explicitIncluded || service}${price ? " - " + price : ""}`,
+          data: {
+            ...base,
+            servico: service,
+            servico_detalhe: explicitIncluded || service,
+            destino: "POA / Gramado / Canela / City Tour",
+            obs_venda: price ? `${service} ${price}` : service,
+            cobrar: price || "--",
+            budget_servico: service,
+            budget_inclusos: explicitIncluded || service,
+            budget_total: price || "",
+            budget_por_pessoa: singleLineField(text, ["Valor por pessoa"]),
+            budget_observacoes: singleLineField(text, ["observacoes"])
+          }
+        });
+        return suggestions;
+      }
 
       if (lower.includes("transfer")) {
         const price = moneyNear(text, "Transfer");

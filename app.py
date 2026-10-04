@@ -755,30 +755,34 @@ PAGE = r"""<!doctype html>
             person: optionPremiumPerson
           }
         ];
-        optionData.forEach((option) => {
+        const optionLines = optionData.map((option) => {
           const tourDescription = `${tourDays || ""} dias de City Tour ${option.label}`.trim();
-          const service = `Transfer privativo ida e volta + ${tourDescription}`;
-          const included = [
-            `Transfer privativo em veículo ${vehicle || "privativo"}${transferPrice ? ` - ${transferPrice}` : ""}`,
-            `${tourDescription}${option.daily ? ` - ${option.daily} por dia` : ""}`
-          ].join(" | ");
-          suggestions.push({
-            title: `City Tour ${option.label}`,
-            description: `${service}${option.total ? ` - ${option.total}` : ""}`,
-            data: {
-              ...base,
-              servico: service,
-              servico_detalhe: included,
-              destino: "Aeroporto de Porto Alegre / Gramado / Canela / City Tour",
-              obs_venda: `Orçamento ${option.label}`,
-              cobrar: option.total || "--",
-              budget_servico: service,
-              budget_inclusos: included,
-              budget_total: option.total || "",
-              budget_por_pessoa: option.person || "",
-              budget_observacoes: "Valores apresentados separadamente para City Tour Tradicional e Premium."
-            }
-          });
+          const dailyTotal = option.daily && tourDays ? `R$ ${option.daily.replace(/^R\$\s*/i, "")} x ${tourDays} dias` : "";
+          return [
+            `Transfer + City Tour ${option.label}`,
+            transferPrice ? `Transfer: ${transferPrice}` : "",
+            dailyTotal ? `City Tour: ${dailyTotal}` : "",
+            option.total ? `Total: ${option.total}` : "",
+            option.person ? `Por pessoa: ${option.person}` : ""
+          ].filter(Boolean).join(" | ");
+        }).join("\n\n");
+        const combinedService = `Transfer privativo ida e volta + City Tour Tradicional ou Premium`;
+        suggestions.push({
+          title: "Transfer + City Tour (duas opções)",
+          description: optionLines.replace(/\n/g, " / "),
+          data: {
+            ...base,
+            servico: combinedService,
+            servico_detalhe: optionLines,
+            destino: "Aeroporto de Porto Alegre / Gramado / Canela / City Tour",
+            obs_venda: "Duas opções de City Tour para escolha do cliente",
+            cobrar: "--",
+            budget_servico: combinedService,
+            budget_inclusos: optionLines,
+            budget_total: "",
+            budget_por_pessoa: "",
+            budget_observacoes: "Escolha uma das opções abaixo. Os valores já incluem o transfer privativo."
+          }
         });
         return suggestions;
       }
@@ -1140,7 +1144,6 @@ class AppHandler(BaseHTTPRequestHandler):
         if path == "/":
             self.send_bytes(PAGE.encode("utf-8"), "text/html; charset=utf-8")
             return
-
 
         if path == "/manifest.webmanifest":
             self.send_bytes(json.dumps(MANIFEST).encode("utf-8"), "application/manifest+json; charset=utf-8")

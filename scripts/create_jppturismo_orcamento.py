@@ -149,6 +149,9 @@ def service_title(data: dict) -> str:
 
 
 def included_text(data: dict) -> str:
+    raw_included = data.get("budget_inclusos")
+    if raw_included:
+        return str(raw_included).strip()
     return value(data, "budget_inclusos") or value(
         data,
         "servico_detalhe",
@@ -186,13 +189,19 @@ def generate_budget(data: dict, out_file: str | Path) -> Path:
     vehicle = value(data, "veiculo", "Veículo privativo")
     vehicle_card = vehicle_text(data)
     period = pretty_period(data)
+    included = included_text(data)
+    has_options = "tradicional" in included.lower() and "premium" in included.lower()
     total = value(data, "budget_total") or value(data, "cobrar", "A confirmar")
     total_amount = money_number(total)
-    total_label = br_money(total_amount) if total_amount is not None else total
+    total_label = "Conforme opção escolhida" if has_options else (br_money(total_amount) if total_amount is not None else total)
     per_person = value(data, "budget_por_pessoa")
-    if not per_person and total_amount is not None and total_passengers(data):
+    if has_options:
+        per_person = ""
+    elif not per_person and total_amount is not None and total_passengers(data):
         per_person = f"{br_money(total_amount / total_passengers(data))} por pessoa"
-    deposit = br_money(total_amount * 0.10) if total_amount is not None else "10% do valor"
+    elif per_person and "pessoa" not in per_person.lower():
+        per_person = f"{per_person} por pessoa"
+    deposit = "conforme a opção escolhida" if has_options else (br_money(total_amount * 0.10) if total_amount is not None else "10% do valor")
 
     c.setFillColor(BLUE)
     c.rect(0, height - 118, width, 118, stroke=0, fill=1)
@@ -238,23 +247,25 @@ def generate_budget(data: dict, out_file: str | Path) -> Path:
     feature(c, margin + 270, y, "Atendimento personalizado", "Segurança e pontualidade em cada trajeto.")
 
     y -= 62
-    block_h = 82
+    block_h = 122 if has_options else 82
     c.setFillColor(BLUE)
     c.roundRect(margin, y - block_h, content_w, block_h, 7, stroke=0, fill=1)
     c.setFillColor(GOLD)
     c.setFont("Helvetica-Bold", 9)
     c.drawString(margin + 14, y - 22, "INVESTIMENTO DA EXPERIÊNCIA")
-    c.drawRightString(width - margin - 22, y - 22, "VALOR TOTAL")
+    c.drawRightString(width - margin - 22, y - 22, "2 OPÇÕES" if has_options else "VALOR TOTAL")
     c.setFillColor(colors.white)
     c.setFont("Helvetica", 10)
-    wrap(c, f"{included_text(data)}\nPacote: {total_label}", margin + 14, y - 44, 280, 10, 13)
-    c.setFont("Helvetica-Bold", 20)
-    c.drawRightString(width - margin - 22, y - 50, total_label)
+    investment_text = included if has_options else f"{included}\nPacote: {total_label}"
+    wrap(c, investment_text, margin + 14, y - 44, 350 if has_options else 280, 10, 13)
+    if not has_options:
+        c.setFont("Helvetica-Bold", 20)
+        c.drawRightString(width - margin - 22, y - 50, total_label)
     if per_person:
         c.setFont("Helvetica", 9)
         c.drawRightString(width - margin - 22, y - 72, per_person)
 
-    y -= 108
+    y -= block_h + 26
     c.setFillColor(BLUE)
     c.setFont("Helvetica-Bold", 12)
     c.drawString(margin, y, "Informação importante")
@@ -281,7 +292,7 @@ def generate_budget(data: dict, out_file: str | Path) -> Path:
         12,
     )
 
-    y -= 80
+    y -= confirm_h + 18
     c.setFillColor(BLUE)
     c.setFont("Helvetica", 10)
     c.drawString(margin, y, "Será um prazer cuidar dos seus deslocamentos na Serra Gaúcha.")

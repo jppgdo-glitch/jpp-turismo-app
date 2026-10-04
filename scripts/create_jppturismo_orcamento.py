@@ -246,8 +246,8 @@ def generate_budget(data: dict, out_file: str | Path) -> Path:
     feature(c, margin + 5, y, f"{vehicle} privativo", f"Conforto e tranquilidade para {total_passengers(data) or 'seus'} passageiros.")
     feature(c, margin + 270, y, "Atendimento personalizado", "Segurança e pontualidade em cada trajeto.")
 
-    y -= 62
-    block_h = 122 if has_options else 82
+    y -= 43
+    block_h = 150 if has_options else 82
     c.setFillColor(BLUE)
     c.roundRect(margin, y - block_h, content_w, block_h, 7, stroke=0, fill=1)
     c.setFillColor(GOLD)
@@ -295,7 +295,7 @@ def generate_budget(data: dict, out_file: str | Path) -> Path:
     y -= confirm_h + 18
     c.setFillColor(BLUE)
     c.setFont("Helvetica", 10)
-    c.drawString(margin, y, "Será um prazer cuidar dos seus deslocamentos na Serra Gaúcha.")
+    c.drawString(margin, max(y, 92), "Será um prazer cuidar dos seus deslocamentos na Serra Gaúcha.")
 
     c.setStrokeColor(LINE)
     c.line(margin, 76, width - margin, 76)

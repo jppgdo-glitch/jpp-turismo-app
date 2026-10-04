@@ -292,11 +292,6 @@ def generate_budget(data: dict, out_file: str | Path) -> Path:
         12,
     )
 
-    y -= confirm_h + 18
-    c.setFillColor(BLUE)
-    c.setFont("Helvetica", 10)
-    c.drawString(margin, max(y, 92), "Será um prazer cuidar dos seus deslocamentos na Serra Gaúcha.")
-
     c.setStrokeColor(LINE)
     c.line(margin, 76, width - margin, 76)
     c.setFillColor(MUTED)

@@ -762,8 +762,8 @@ PAGE = r"""<!doctype html>
             `Transfer + City Tour ${option.label}`,
             transferPrice ? `Transfer: ${transferPrice}` : "",
             dailyTotal ? `City Tour: ${dailyTotal}` : "",
-            option.total ? `Total: ${option.total}` : "",
-            option.person ? `Por pessoa: ${option.person}` : ""
+            option.total ? `Valor total: ${option.total}` : "",
+            option.person ? `Por pessoa fica: ${option.person}` : ""
           ].filter(Boolean).join(" | ");
         }).join("\n\n");
         const combinedService = `Transfer privativo ida e volta + City Tour Tradicional ou Premium`;

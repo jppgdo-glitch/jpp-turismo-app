@@ -593,7 +593,7 @@ PAGE = r"""<!doctype html>
     }
 
     function formatMoney(amount) {
-      return `R$ ${amount.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`;
+      return `R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
 
     function currentDateWith(time) {

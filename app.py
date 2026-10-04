@@ -706,6 +706,15 @@ PAGE = r"""<!doctype html>
         chd: children ? children[1] : "0"
       };
     }
+    
+    function granReservaQuote(passengers, text) {
+      const people = Math.max(1, Number(passengers) || 1);
+      const twoSedans = people > 6 || /dois\s+sed[ãa]s|2\s+sed[ãa]s/i.test(text);
+      const transport = people <= 4 ? 950 : twoSedans ? (people > 6 ? 1900 : 1750) : 1200;
+      const total = transport + (people * 195) + (people * 180) + (people * 160);
+      return { total, vehicle: people <= 4 ? "Sedã" : twoSedans ? "Dois sedãs" : "Spin" };
+    }
+
 
     function detectSuggestions(text) {
       const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -744,7 +753,18 @@ PAGE = r"""<!doctype html>
       const transferPrice = moneyOnLine(text, "transfer ida e volta") || moneyOnLine(text, "transfer privativo em veículo") || moneyNear(text, "transfer");
       const traditionalDaily = moneyAfter(text, /City\s+Tour\s+Tradicional[^\n]*R\$\s*([\d.,]+)\s*por\s*dia/i);
       const premiumDaily = moneyAfter(text, /City\s+Tour\s+Premium[^\n]*R\$\s*([\d.,]+)\s*por\s*dia/i);
-      const hasTourOptions = lower.includes("city tour tradicional") && lower.includes("city tour premium");
+            if (lower.includes("gran reserva") || (lower.includes("casa valduga") && lower.includes("lidio carraro") && lower.includes("pizzato"))) {
+        const quote = granReservaQuote(counts.adt, text);
+        const total = formatMoney(quote.total);
+        suggestions.push({
+          title: "Tour Gran Reserva",
+          description: `Casa Valduga, Lidio Carraro, Pizzato e transporte privativo - ${total}`,
+          data: { ...base, servico: "Tour Gran Reserva", servico_detalhe: "Transporte privativo + Casa Valduga + Lidio Carraro + Pizzato", destino: "Vale dos Vinhedos", veiculo: quote.vehicle, cobrar: total, budget_servico: "Tour Gran Reserva", budget_inclusos: "Transporte privativo, Casa Valduga, Lidio Carraro e Pizzato", budget_total: total, budget_por_pessoa: formatMoney(quote.total / (Number(counts.adt) + Number(counts.chd || 0))) + " por pessoa" }
+        });
+        return suggestions;
+      }
+
+const hasTourOptions = lower.includes("city tour tradicional") && lower.includes("city tour premium");
       const hasCompositeService = explicitService && (
         explicitService.toLowerCase().includes("transfer") &&
         (explicitService.toLowerCase().includes("city") || explicitService.toLowerCase().includes("+") || explicitService.toLowerCase().includes("tradicional"))
@@ -849,7 +869,8 @@ PAGE = r"""<!doctype html>
       if (lower.includes("trem") || lower.includes("maria fumaca") || lower.includes("vinho") || lower.includes("vinhedos")) {
         const wineOnly = !lower.includes("trem") && !lower.includes("maria fumaca");
         const wineTitle = wineOnly ? "Vale dos Vinhedos" : "Trem e vinho";
-        const price = moneyNear(text, wineOnly ? "vinhedos" : "trem") || explicitTotal;
+                const mariaTotal = !wineOnly && counts.adt ? formatMoney(Number(counts.adt) * 280) : "";
+        const price = moneyNear(text, wineOnly ? "vinhedos" : "trem") || explicitTotal || mariaTotal;
         suggestions.push({
           title: wineTitle,
           description: `${wineOnly ? "Vinicolas e Vale dos Vinhedos" : "Bento Goncalves, Maria Fumaca e Epopeia Italiana"}${price ? " - " + price : ""}`,

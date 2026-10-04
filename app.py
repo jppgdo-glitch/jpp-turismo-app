@@ -779,15 +779,12 @@ PAGE = r"""<!doctype html>
           }
         });
         const optionLines = optionData.map((option) => {
-          const tourDescription = `${tourDays || ""} dias de City Tour ${option.label}`.trim();
           const dailyTotal = option.daily && tourDays ? `R$ ${option.daily.replace(/^R\$\s*/i, "")} x ${tourDays} dias` : "";
           return [
-            `Transfer + City Tour ${option.label}`,
-            transferPrice ? `Transfer: ${transferPrice}` : "",
-            dailyTotal ? `City Tour: ${dailyTotal}` : "",
-            option.total ? `Valor total: ${option.total}` : "",
-            option.person ? `Por pessoa fica: ${option.person}` : ""
-          ].filter(Boolean).join(" | ");
+            `OPÇÃO ${option.label.toUpperCase()}`,
+            `${transferPrice ? `Transfer: ${transferPrice}` : "Transfer: A confirmar"} | ${dailyTotal ? `City Tour: ${dailyTotal}` : "City Tour: A confirmar"}`,
+            `${option.total ? `Valor total: ${option.total}` : "Valor total: A confirmar"}${option.person ? ` | Por pessoa fica: ${option.person}` : ""}`
+          ].filter(Boolean).join("\n");
         }).join("\n\n");
         const combinedService = `Transfer privativo ida e volta + City Tour Tradicional ou Premium`;
         suggestions.push({

@@ -401,7 +401,7 @@ PAGE = r"""<!doctype html>
             <textarea class="paste-area" id="pasteText" placeholder="Cole aqui a conversa, roteiro ou orcamento recebido pelo WhatsApp."></textarea>
           </label>
           <div class="actions" style="margin:16px -18px -18px;">
-            <div class="status" id="pasteStatus">Cole o texto e clique em ajustar dados.</div>
+          <div class="status" id="pasteStatus">Cole o texto; o sistema ajustara os dados automaticamente.</div>
             <button type="button" id="parseBtn">Ajustar dados</button>
           </div>
           <div class="suggestions" id="suggestions"></div>
@@ -568,6 +568,24 @@ PAGE = r"""<!doctype html>
       return match ? match[0].replace(/\s+/g, " ") : "";
     }
 
+    function moneyOnLine(text, marker) {
+      const wanted = simplifyFieldName(marker);
+      const line = text.split(/\n+/).find((item) => simplifyFieldName(item).includes(wanted));
+      const match = line && line.match(/R\$\s*[\d.,]+/i);
+      return match ? match[0].replace(/\s+/g, " ") : "";
+    }
+
+    function moneyAfter(text, pattern) {
+      const match = text.match(pattern);
+      return match ? `R$ ${match[1]}` : "";
+    }
+
+    function moneyAfterMarker(text, marker, pattern) {
+      const index = text.toLowerCase().indexOf(marker.toLowerCase());
+      if (index < 0) return "";
+      return moneyAfter(text.slice(index), pattern);
+    }
+
     function currentDateWith(time) {
       const current = form.elements.data.value || "";
       const date = (current.match(/\d{2}\/\d{2}\/\d{4}/) || [""])[0];
@@ -707,10 +725,63 @@ PAGE = r"""<!doctype html>
       const explicitService = singleLineField(text, ["servico", "servicos"]);
       const explicitIncluded = blockField(text, ["servicos incluidos"]);
       const explicitTotal = singleLineField(text, ["Valor total", "Investimento total"]);
+      const optionTraditionalTotal = moneyAfter(text, /Com\s+City\s+Tour\s+Tradicional\s*:\s*R\$\s*([\d.,]+)/i);
+      const optionPremiumTotal = moneyAfter(text, /Com\s+City\s+Tour\s+Premium\s*:\s*R\$\s*([\d.,]+)/i);
+      const optionTraditionalPerson = moneyAfterMarker(text, "Valor por pessoa", /Tradicional\s*:\s*R\$\s*([\d.,]+)/i);
+      const optionPremiumPerson = moneyAfterMarker(text, "Valor por pessoa", /Premium\s*:\s*R\$\s*([\d.,]+)/i);
+      const daysMatch = text.match(/(\d+)\s*dias?\s*(?:de\s*)?City\s+Tour/i);
+      const tourDays = daysMatch ? daysMatch[1] : "";
+      const transferPrice = moneyOnLine(text, "transfer ida e volta") || moneyOnLine(text, "transfer privativo em veículo") || moneyNear(text, "transfer");
+      const traditionalDaily = moneyAfter(text, /City\s+Tour\s+Tradicional[^\n]*R\$\s*([\d.,]+)\s*por\s*dia/i);
+      const premiumDaily = moneyAfter(text, /City\s+Tour\s+Premium[^\n]*R\$\s*([\d.,]+)\s*por\s*dia/i);
+      const hasTourOptions = lower.includes("city tour tradicional") && lower.includes("city tour premium");
       const hasCompositeService = explicitService && (
         explicitService.toLowerCase().includes("transfer") &&
         (explicitService.toLowerCase().includes("city") || explicitService.toLowerCase().includes("+") || explicitService.toLowerCase().includes("tradicional"))
       );
+
+      if (hasTourOptions) {
+        const optionData = [
+          {
+            label: "Tradicional",
+            daily: traditionalDaily,
+            total: optionTraditionalTotal,
+            person: optionTraditionalPerson
+          },
+          {
+            label: "Premium",
+            daily: premiumDaily,
+            total: optionPremiumTotal,
+            person: optionPremiumPerson
+          }
+        ];
+        optionData.forEach((option) => {
+          const tourDescription = `${tourDays || ""} dias de City Tour ${option.label}`.trim();
+          const service = `Transfer privativo ida e volta + ${tourDescription}`;
+          const included = [
+            `Transfer privativo em veículo ${vehicle || "privativo"}${transferPrice ? ` - ${transferPrice}` : ""}`,
+            `${tourDescription}${option.daily ? ` - ${option.daily} por dia` : ""}`
+          ].join(" | ");
+          suggestions.push({
+            title: `City Tour ${option.label}`,
+            description: `${service}${option.total ? ` - ${option.total}` : ""}`,
+            data: {
+              ...base,
+              servico: service,
+              servico_detalhe: included,
+              destino: "Aeroporto de Porto Alegre / Gramado / Canela / City Tour",
+              obs_venda: `Orçamento ${option.label}`,
+              cobrar: option.total || "--",
+              budget_servico: service,
+              budget_inclusos: included,
+              budget_total: option.total || "",
+              budget_por_pessoa: option.person || "",
+              budget_observacoes: "Valores apresentados separadamente para City Tour Tradicional e Premium."
+            }
+          });
+        });
+        return suggestions;
+      }
 
       if (hasCompositeService || explicitIncluded) {
         const service = explicitService || explicitIncluded;
@@ -751,18 +822,40 @@ PAGE = r"""<!doctype html>
         });
       }
 
-      if (lower.includes("trem") || lower.includes("maria fumaca") || lower.includes("vinho")) {
-        const price = moneyNear(text, "trem");
+      if (lower.includes("trem") || lower.includes("maria fumaca") || lower.includes("vinho") || lower.includes("vinhedos")) {
+        const wineOnly = !lower.includes("trem") && !lower.includes("maria fumaca");
+        const wineTitle = wineOnly ? "Vale dos Vinhedos" : "Trem e vinho";
+        const price = moneyNear(text, wineOnly ? "vinhedos" : "trem") || explicitTotal;
         suggestions.push({
-          title: "Trem e vinho",
-          description: `Bento Goncalves, Maria Fumaca e Epopeia Italiana${price ? " - " + price : ""}`,
+          title: wineTitle,
+          description: `${wineOnly ? "Vinicolas e Vale dos Vinhedos" : "Bento Goncalves, Maria Fumaca e Epopeia Italiana"}${price ? " - " + price : ""}`,
           data: {
             ...base,
-            servico: "Passeio trem e vinho",
-            servico_detalhe: "Bento Goncalves + Maria Fumaca",
-            destino: "Bento Goncalves / Vale dos Vinhedos",
-            obs_venda: price ? `Trem e vinho ${price}` : "Passeio privativo",
+            servico: explicitService || (wineOnly ? "Vale dos Vinhedos" : "Passeio trem e vinho"),
+            servico_detalhe: explicitIncluded || (wineOnly ? "Visita a vinicolas e Vale dos Vinhedos" : "Bento Goncalves + Maria Fumaca"),
+            destino: wineOnly ? "Vale dos Vinhedos" : "Bento Goncalves / Vale dos Vinhedos",
+            obs_venda: price ? `${wineTitle} ${price}` : "Passeio privativo",
             cobrar: price || "--"
+          }
+        });
+      }
+
+      if (lower.includes("city tour") && !lower.includes("tradicional") && !lower.includes("premium")) {
+        const price = moneyNear(text, "city tour") || explicitTotal;
+        suggestions.push({
+          title: "City Tour",
+          description: `Passeio privativo pela Serra Gaucha${price ? " - " + price : ""}`,
+          data: {
+            ...base,
+            servico: explicitService || "City Tour",
+            servico_detalhe: explicitIncluded || "City Tour privativo com roteiro personalizado",
+            destino: "Serra Gaucha",
+            obs_venda: price ? `City Tour ${price}` : "Passeio privativo",
+            cobrar: price || "--",
+            budget_servico: explicitService || "City Tour",
+            budget_inclusos: explicitIncluded || "City Tour privativo com roteiro personalizado",
+            budget_total: price || "",
+            budget_observacoes: singleLineField(text, ["observacoes"])
           }
         });
       }
@@ -909,7 +1002,7 @@ PAGE = r"""<!doctype html>
       button.addEventListener("click", () => showTab(button.dataset.tab));
     });
 
-    parseBtn.addEventListener("click", () => {
+    function parsePastedText() {
       const text = pasteText.value.trim();
       if (!text) {
         pasteStatus.textContent = "Cole um texto antes de ajustar.";
@@ -921,7 +1014,17 @@ PAGE = r"""<!doctype html>
       pasteStatus.textContent = `${suggestions.length} sugestao(oes) encontrada(s).`;
       if (suggestions.length === 1) {
         fillFields(suggestions[0].data);
+        showTab("budgetPanel");
+        pasteStatus.textContent = "Dados ajustados automaticamente. Confira o orcamento.";
       }
+    }
+
+    parseBtn.addEventListener("click", parsePastedText);
+    pasteText.addEventListener("paste", () => setTimeout(parsePastedText, 0));
+    let pasteTimer;
+    pasteText.addEventListener("input", () => {
+      clearTimeout(pasteTimer);
+      pasteTimer = setTimeout(parsePastedText, 250);
     });
 
     clearBtn.addEventListener("click", () => {
@@ -1037,6 +1140,7 @@ class AppHandler(BaseHTTPRequestHandler):
         if path == "/":
             self.send_bytes(PAGE.encode("utf-8"), "text/html; charset=utf-8")
             return
+
 
         if path == "/manifest.webmanifest":
             self.send_bytes(json.dumps(MANIFEST).encode("utf-8"), "application/manifest+json; charset=utf-8")

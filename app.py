@@ -586,6 +586,16 @@ PAGE = r"""<!doctype html>
       return moneyAfter(text.slice(index), pattern);
     }
 
+    function moneyNumber(text) {
+      const raw = String(text || "").replace(/[^\d.,]/g, "");
+      if (!raw) return 0;
+      return Number(raw.replace(/\./g, "").replace(",", ".")) || 0;
+    }
+
+    function formatMoney(amount) {
+      return `R$ ${amount.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`;
+    }
+
     function currentDateWith(time) {
       const current = form.elements.data.value || "";
       const date = (current.match(/\d{2}\/\d{2}\/\d{4}/) || [""])[0];
@@ -755,6 +765,19 @@ PAGE = r"""<!doctype html>
             person: optionPremiumPerson
           }
         ];
+        optionData.forEach((option) => {
+          const transferAmount = moneyNumber(transferPrice);
+          const dailyAmount = moneyNumber(option.daily);
+          const computedTotal = transferAmount && dailyAmount && tourDays
+            ? transferAmount + (dailyAmount * Number(tourDays))
+            : 0;
+          if (computedTotal && (!option.total || moneyNumber(option.total) === transferAmount)) {
+            option.total = formatMoney(computedTotal);
+          }
+          if (computedTotal && !option.person && counts.adt) {
+            option.person = formatMoney(computedTotal / (Number(counts.adt) + Number(counts.chd || 0)));
+          }
+        });
         const optionLines = optionData.map((option) => {
           const tourDescription = `${tourDays || ""} dias de City Tour ${option.label}`.trim();
           const dailyTotal = option.daily && tourDays ? `R$ ${option.daily.replace(/^R\$\s*/i, "")} x ${tourDays} dias` : "";
